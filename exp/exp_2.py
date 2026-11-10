@@ -24,6 +24,7 @@ from src.clearing import (
     insolvency_resilience_threshold_lower_bound,
 )
 from src.robust_loss import breakpoint_mechanism, eta_wc_point, trace_loss_curve
+from src.plotting import plot_loss_curve
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 
@@ -81,6 +82,15 @@ def run_main_instance() -> dict:
     no_breakpoint_beyond_lower_ub = all(bp["epsilon"] <= eps_ub_lower for bp in breakpoints) \
         if eps_ub_lower < eps_ub else True
 
+    # Sample the exact piecewise-linear envelope (paper Theorem 14) for plotting:
+    # a few points per affine segment plus the flat region [0, epsilon*].
+    curve_eps, curve_loss = [0.0, eps_star], [0.0, 0.0]
+    for lo, hi, piece in trace["segments"]:
+        for frac in (0.0, 0.5, 1.0):
+            eps = lo + frac * (hi - lo)
+            curve_eps.append(eps)
+            curve_loss.append((piece.gamma + piece.mu * eps) / total_p_bar)
+
     return {
         "instance": "D-pre",
         "n": config.EXP2_N, "m": config.EXP2_M,
@@ -96,6 +106,8 @@ def run_main_instance() -> dict:
         "no_breakpoint_beyond_eps_ub_lower": bool(no_breakpoint_beyond_lower_ub),
         "max_validation_gap": max_gap,
         "n_affine_pieces": len(trace["segments"]),
+        "curve_eps_grid": curve_eps,
+        "curve_losses": curve_loss,
     }
 
 
@@ -156,6 +168,18 @@ def main():
     out_path.write_text(json.dumps(results, indent=2))
     print(f"Saved {out_path}")
     print(json.dumps(results, indent=2))
+
+    table_3 = results["table_3"]
+    plot_loss_curve(
+        eps_grid=table_3["curve_eps_grid"],
+        losses=table_3["curve_losses"],
+        eps_ub=table_3["epsilon_ub"],
+        eps_star=table_3["epsilon_star"],
+        breakpoints=table_3["breakpoints"],
+        out_path=RESULTS_DIR / "exp2_loss_curve.png",
+        title="D-pre: pre-insolvency worst-case loss curve eta_wc(epsilon) (Theorem 14)",
+    )
+    print(f"Saved {RESULTS_DIR / 'exp2_loss_curve.png'}")
 
 
 if __name__ == "__main__":

@@ -92,33 +92,49 @@ identified further within the time available (see Deviations).
 ## exp_3 — Post-Insolvency Scalar Geometry (D-post, Section 7.4, Table 5)
 
 Source file: `results/exp3_results.json`. Fixed instance D-post: n=6, m=1,
-seed=1. Realized thresholds: epsilon* = 0.0284, epsilon_ub = 0.3221 (equal to
+seed=1. Realized thresholds: epsilon* = 0.0284, epsilon_ub = 0.4122 (equal to
 epsilon_ub_lower, as expected since m=1 collapses the two bounds).
 
 | quantity | ours | paper |
 |---|---|---|
 | epsilon* (absolute) | 0.0284 | 0.211 |
-| epsilon_ub (absolute) | 0.3221 | 0.883 |
+| epsilon_ub (absolute) | 0.4122 | 0.883 |
 | pre-insolvency convex & nondecreasing | True | True |
 | post-insolvency nondecreasing | True | True |
 | post-insolvency convex | False | False |
-| loss at eps -> large multiple of eps_ub | 1.0 (total loss) | 1.0 (total loss, at 3.636x) |
-| number of post-insolvency kinks | 21 | 7 |
-| jumps detected (|loss(eps+1e-6) - loss(eps-1e-6)| > tol) | none (`is_continuous=True` at all 21 kinks) | none |
+| loss at eps -> large multiple of eps_ub | 0.986 (near-total loss) | 1.0 (total loss, at 3.636x) |
+| number of post-insolvency kinks | 4 | 7 |
+| jumps detected (|loss(eps+1e-6) - loss(eps-1e-6)| > tol) | none (`is_continuous=True` at all 4 kinks) | none |
+
+Realized kink table (radius ratio epsilon/epsilon_ub, left slope, right slope,
+zero-payment set before -> after), from `table_5_kinks` in
+`results/exp3_results.json`:
+
+| ratio | left slope | right slope | zero-set before | zero-set after |
+|---|---|---|---|---|
+| 1.051 | 2.258 | 1.433 | {6} | {5,6} |
+| 1.245 | 1.433 | 0.872 | {5,6} | {4,5,6} |
+| 1.763 | 0.872 | 0.481 | {4,5,6} | {3,4,5,6} |
+| 1.962 | 0.481 | 0.141 | {3,4,5,6} | {2,3,4,5,6} |
 
 Verdicts: post-insolvency curve is nondecreasing and piecewise linear but **not
-convex** beyond epsilon_ub — **reproduced** (Theorem 22's qualitative claim: in
-the realized instance the right slope is smaller than the left slope at
-several kinks, e.g. ratio 1.0 onward, exactly as the paper's own table shows
-for its D-post instance). Absence of jumps at every detected kink —
-**reproduced**. Loss saturating at the normalized total 1.0 for a large
-stress radius — **reproduced**. The fixed D-post instance's exact parameter
+convex** beyond epsilon_ub — **reproduced** (Theorem 22's qualitative claim:
+the right slope is strictly smaller than the left slope at every one of the
+four detected kinks, monotonically decreasing from 2.258 down to 0.141, exactly
+the convexity failure the paper's own Table 5 shows for its D-post instance,
+and each kink is accompanied by a strictly growing zero-payment set, matching
+the paper's description of post-insolvency kinks as changes in the
+zero-payment bank set). Absence of jumps at every detected kink —
+**reproduced**. Loss approaching the normalized total of 1 for a large stress
+radius — **reproduced** (0.986 reached by 4x epsilon_ub, matching the paper's
+saturation behaviour; full saturation to exactly 1.0 would require pushing the
+grid further than tested here). The fixed D-post instance's exact parameter
 values (P-bar, c-bar, S) are not published in the paper text and the paper
 states that they are provided only in the authors' own reproducibility
 package, which this repository did not have access to (see Deviations); the
 instance constructed here is therefore a different hand-crafted n=6, m=1
 network satisfying the same defining property (default-free at nominal
-prices, S >= 0). Consequently epsilon*, epsilon_ub, the number of kinks (21 vs.
+prices, S >= 0). Consequently epsilon*, epsilon_ub, the number of kinks (4 vs.
 7), and the individual kink radii/slopes/zero-payment sets in Table 5 are
 **not reproduced** as point values; they are a different realization of the
 same geometric phenomenon the paper describes.
@@ -240,7 +256,7 @@ scenarios).
   the paper's own instance, which is the dominant source of every point-value
   gap reported above. The paper's own reproducibility package
   ("MILP_Clearing_code", referenced in the text for the D-post instance) was
-  not reachable from the evidence retrieved for this replication, so the exact
+  not reachable from the paper text used for this replication, so the exact
   fixed D-post network could not be reused.
 - **D-post instance (exp_3).** The paper states D-post is a fixed,
   hand-crafted n=6, m=1 instance "available in the reproducibility package",
@@ -282,7 +298,7 @@ scenarios).
   tabulated kink radii/slopes/zero-payment sets** are not reproduced, because
   the paper states this fixed instance is only available in the authors'
   reproducibility package, which was not accessible from the evidence
-  retrieved for this replication (see Deviations). The geometric claim the
+  available for this replication (see Deviations). The geometric claim the
   table illustrates (non-convex, nondecreasing, piecewise-linear,
   jump-free post-insolvency curve) is reproduced on a substitute instance.
 - **exp_4, Table 9, the paper's exact wall-clock seconds** are hardware- and

@@ -27,6 +27,7 @@ from data.generate_synthetic import build_d_post
 from src import config
 from src.certificates import fixed_pattern_loss
 from src.clearing import default_resilience_margin, insolvency_resilience_threshold
+from src.plotting import plot_loss_curve
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 
@@ -58,23 +59,66 @@ def trace_grid(p_bar, a, c_bar, s_vector, eps_grid: np.ndarray, total_p_bar: flo
     return np.array(losses), zero_sets
 
 
-def find_kinks(eps_grid: np.ndarray, losses: np.ndarray, zero_sets: list,
-                slope_tol: float = 1e-3) -> list:
-    """Locate grid points where the finite-difference slope changes by more
-    than ``slope_tol``, i.e. a kink of the piecewise-linear loss curve."""
-    slopes = np.diff(losses) / np.diff(eps_grid)
+def locate_exact_kinks(p_bar, a, c_bar, s_vector, eps_grid: np.ndarray,
+                        zero_sets: list, total_p_bar: float, eps_min_report: float,
+                        probe: float = config.EXP3_KINK_PROBE,
+                        merge_tol: float = 1e-6) -> list:
+    """Exact regime-switch kink location (paper Sec. 7.4, steps 6-7).
+
+    A kink of the piecewise-linear loss curve coincides exactly with a change
+    of the active zero-payment bank pattern z (Theorem 1 pattern
+    decomposition), because within one fixed pattern the regime-restricted LP
+    of ``exact_clearing_loss_and_zero_set`` reduces to a linear system that is
+    affine in epsilon. Consecutive grid points whose exact zero-payment set
+    differs therefore bracket a true switch, which is localized exactly by
+    bisection rather than read off at the (finite) grid resolution -- this
+    removes the duplicate detections a naive finite-difference slope test
+    produces when a single switch falls inside one grid cell. Only switches
+    at or beyond ``eps_min_report`` are kept, matching research objective 3
+    ("post-insolvency kinks"): Table 5 of the paper reports no breakpoint
+    below epsilon_ub.
+    """
+    def pattern_at(eps: float) -> tuple:
+        c = c_bar - eps * s_vector
+        _, zs = exact_clearing_loss_and_zero_set(p_bar, a, c)
+        return tuple(zs)
+
+    located = []
+    for k in range(len(eps_grid) - 1):
+        if tuple(zero_sets[k]) == tuple(zero_sets[k + 1]):
+            continue
+        lo, hi, pat_lo = eps_grid[k], eps_grid[k + 1], tuple(zero_sets[k])
+        for _ in range(60):
+            mid = 0.5 * (lo + hi)
+            if pattern_at(mid) == pat_lo:
+                lo = mid
+            else:
+                hi = mid
+        located.append(0.5 * (lo + hi))
+
     kinks = []
-    for k in range(1, len(slopes)):
-        if abs(slopes[k] - slopes[k - 1]) > slope_tol:
-            kinks.append({
-                "index": k,
-                "epsilon": float(eps_grid[k]),
-                "left_slope": float(slopes[k - 1]),
-                "right_slope": float(slopes[k]),
-                "zero_set_left": zero_sets[k - 1],
-                "zero_set_right": zero_sets[k + 1] if k + 1 < len(zero_sets) else zero_sets[k],
-            })
-    return kinks
+    for eps_k in located:
+        if kinks and abs(eps_k - kinks[-1]) < merge_tol:
+            continue
+        if eps_k < eps_min_report:
+            continue
+        kinks.append(eps_k)
+
+    table = []
+    for eps_k in kinks:
+        left_loss, zs_left = exact_clearing_loss_and_zero_set(p_bar, a, c_bar - (eps_k - probe) * s_vector)
+        right_loss, zs_right = exact_clearing_loss_and_zero_set(p_bar, a, c_bar - (eps_k + probe) * s_vector)
+        at_loss, _ = exact_clearing_loss_and_zero_set(p_bar, a, c_bar - eps_k * s_vector)
+        left_slope = (at_loss - left_loss) / probe / total_p_bar
+        right_slope = (right_loss - at_loss) / probe / total_p_bar
+        table.append({
+            "epsilon": float(eps_k),
+            "left_slope": float(left_slope),
+            "right_slope": float(right_slope),
+            "zero_set_left": zs_left,
+            "zero_set_right": zs_right,
+        })
+    return table
 
 
 def verify_no_jumps(p_bar, a, c_bar, s_vector, kinks: list, total_p_bar: float,
@@ -106,7 +150,11 @@ def run() -> dict:
     eps_grid = np.linspace(0.0, eps_max, config.EXP3_GRID_POINTS)
 
     losses, zero_sets = trace_grid(p_bar, a, c_bar, s_vector, eps_grid, total_p_bar)
-    kinks = find_kinks(eps_grid, losses, zero_sets)
+    # Research objective 3 / Table 5 of the paper report only post-insolvency
+    # kinks (epsilon >= epsilon_ub); the pre-insolvency envelope (epsilon* to
+    # epsilon_ub) is the subject of experiment 2 (D-pre), not of this one.
+    kinks = locate_exact_kinks(p_bar, a, c_bar, s_vector, eps_grid, zero_sets,
+                                total_p_bar, eps_min_report=eps_ub)
     continuity = verify_no_jumps(p_bar, a, c_bar, s_vector, kinks, total_p_bar)
 
     # Theorem 22: beyond epsilon_ub the curve is nondecreasing and piecewise
@@ -132,6 +180,11 @@ def run() -> dict:
         "zero_set_left": k["zero_set_left"],
         "zero_set_right": k["zero_set_right"],
     } for k in kinks]
+    # Theorem 22 only requires each piece's slope to be nonnegative (loss
+    # nondecreasing); it does not require slopes to decrease at every kink,
+    # which is exactly how the curve can fail to be convex post-insolvency.
+    assert all(k["left_slope"] >= -1e-6 and k["right_slope"] >= -1e-6 for k in kink_table), \
+        "post-insolvency slopes must stay nonnegative (Theorem 22: nondecreasing loss curve)"
 
     return {
         "instance": "D-post",
@@ -148,6 +201,8 @@ def run() -> dict:
         "table_5_kinks": kink_table,
         "no_jump_checks": continuity,
         "n_kinks": len(kinks),
+        "curve_eps_grid": eps_grid.tolist(),
+        "curve_losses": losses.tolist(),
     }
 
 
@@ -157,7 +212,19 @@ def main():
     out_path = RESULTS_DIR / "exp3_results.json"
     out_path.write_text(json.dumps(results, indent=2))
     print(f"Saved {out_path}")
-    print(json.dumps(results, indent=2))
+    print(json.dumps({k: v for k, v in results.items()
+                       if k not in ("curve_eps_grid", "curve_losses")}, indent=2))
+
+    plot_loss_curve(
+        eps_grid=results["curve_eps_grid"],
+        losses=results["curve_losses"],
+        eps_ub=results["epsilon_ub"],
+        eps_star=results["epsilon_star"],
+        breakpoints=[{"epsilon": k["epsilon"]} for k in results["table_5_kinks"]],
+        out_path=RESULTS_DIR / "exp3_loss_curve.png",
+        title="D-post: post-insolvency worst-case loss curve eta_wc(epsilon) (Theorem 22)",
+    )
+    print(f"Saved {RESULTS_DIR / 'exp3_loss_curve.png'}")
 
 
 if __name__ == "__main__":

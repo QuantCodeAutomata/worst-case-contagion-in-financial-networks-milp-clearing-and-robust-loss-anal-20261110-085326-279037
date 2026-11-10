@@ -23,6 +23,7 @@ from src.clearing import (
     insolvency_resilience_threshold,
     insolvency_resilience_threshold_lower_bound,
 )
+from src.plotting import plot_feasibility_bars
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 
@@ -102,6 +103,15 @@ def main():
     out_path.write_text(json.dumps(results, indent=2))
     print(f"Saved {out_path}")
     print(json.dumps(results, indent=2))
+
+    plot_feasibility_bars(
+        radius_ratios=[row["radius_ratio"] for row in results["table_2"]],
+        lp_feasible_fraction=[row["lp_feasible_fraction"] for row in results["table_2"]],
+        avg_insolvent_banks=[row["avg_insolvent_banks"] for row in results["table_2"]],
+        out_path=RESULTS_DIR / "exp1_feasibility.png",
+        title="D-val: LP feasibility and insolvent banks vs. stress radius (Table 2)",
+    )
+    print(f"Saved {RESULTS_DIR / 'exp1_feasibility.png'}")
 
 
 if __name__ == "__main__":

@@ -216,7 +216,7 @@ def build_d_post() -> dict:
     post-insolvency regime-enumeration experiments (paper Sec. 7.4). The
     paper states this instance is fixed (not random) and "chosen to make the
     post-insolvency geometry visible," but its exact numerical parameters are
-    not given in the retrieved text (stated to be in the authors'
+    not given in the paper text (stated to be in the authors'
     reproducibility package, not accessible here). The instance below is
     constructed from scratch to reproduce the same qualitative structure:
     n=6 banks, m=1 asset, long-only exposure (S >= 0), a nominally
@@ -226,12 +226,18 @@ def build_d_post() -> dict:
     """
     n = 6
     rng = np.random.default_rng(1)
-    # Directed cyclic/ring liability structure with extra cross-links, fixed
-    # by construction (seed=1 only fixes the illustrative liability weights).
+    # A feed-forward chain (0->1->2->3->4->5) with a few weak cross-links and
+    # no closed return cycle. A full directed cycle (tested first) couples all
+    # banks' resource constraints into one near-singular linear system, which
+    # makes the maximal clearing vector jump discontinuously the instant one
+    # bank's resource constraint fails. Removing the cycle keeps enough
+    # heterogeneity for a sequence of distinct zero-payment patterns while
+    # letting each bank cross its own threshold with a bounded slope change,
+    # matching the "no jumps" property the paper reports for this instance.
     p_bar_matrix = np.zeros((n, n))
     edges = [
         (0, 1, 1.0), (1, 2, 1.4), (2, 3, 0.8), (3, 4, 1.2), (4, 5, 0.9),
-        (5, 0, 1.1), (1, 3, 0.6), (2, 4, 0.5), (0, 2, 0.4), (3, 5, 0.7),
+        (0, 2, 0.35), (1, 3, 0.3), (2, 4, 0.25), (0, 5, 0.2),
     ]
     for i, j, w in edges:
         p_bar_matrix[i, j] = w

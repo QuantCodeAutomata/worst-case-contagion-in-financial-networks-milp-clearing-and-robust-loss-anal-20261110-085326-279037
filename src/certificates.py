@@ -43,7 +43,13 @@ def fixed_pattern_primal_feasible(p_bar: np.ndarray, a: np.ndarray, c: np.ndarra
     z = np.asarray(z, dtype=float)
     obj = -np.ones(n)
     a_ub = np.diag(z) @ (np.eye(n) - a.T)
-    b_ub = z * c
+    # A small absolute slack on the resource constraint avoids classifying a
+    # pattern as spuriously infeasible purely from floating-point rounding
+    # exactly at a feasibility boundary (e.g. epsilon = epsilon_ub, Sec. 7.4),
+    # where the true clearing vector satisfies the constraint with residual at
+    # machine precision but HiGHS's strict primal check can reject it.
+    feas_tol = 1e-7
+    b_ub = z * c + feas_tol
     bounds = list(zip(np.zeros(n), z * p_bar))
     res = linprog(obj, A_ub=a_ub, b_ub=b_ub, bounds=bounds, method="highs")
     if not res.success:
