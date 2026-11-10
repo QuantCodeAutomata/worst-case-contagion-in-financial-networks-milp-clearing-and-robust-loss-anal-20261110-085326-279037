@@ -1,0 +1,50 @@
+{
+  "instance": "D-val",
+  "n": 8,
+  "m": 3,
+  "graph_type": "ER",
+  "density": 0.35,
+  "seed": 11,
+  "epsilon_star": 0.08132747086720202,
+  "epsilon_ub": 4.188079517574207,
+  "epsilon_ub_lower": 3.8393515609164255,
+  "epsilon_ub_lower_vs_exact_pct": -8.326679452823981,
+  "table_2": [
+    {
+      "radius_ratio": 0.5,
+      "epsilon": 2.0940397587871034,
+      "avg_lp_loss_normalized": 0.017204662047104323,
+      "avg_exact_loss_normalized": 0.01720466204710426,
+      "avg_insolvent_banks": 0.0,
+      "lp_feasible_fraction": 1.0,
+      "n_mismatches": 0
+    },
+    {
+      "radius_ratio": 1.0,
+      "epsilon": 4.188079517574207,
+      "avg_lp_loss_normalized": 0.078424686235647,
+      "avg_exact_loss_normalized": 0.078424686235647,
+      "avg_insolvent_banks": 0.0,
+      "lp_feasible_fraction": 1.0,
+      "n_mismatches": 0
+    },
+    {
+      "radius_ratio": 1.2,
+      "epsilon": 5.025695421089048,
+      "avg_lp_loss_normalized": 0.07162190829899946,
+      "avg_exact_loss_normalized": 0.11078810335150471,
+      "avg_insolvent_banks": 0.13,
+      "lp_feasible_fraction": 0.95,
+      "n_mismatches": 0
+    },
+    {
+      "radius_ratio": 2.0,
+      "epsilon": 8.376159035148413,
+      "avg_lp_loss_normalized": 0.07312237858421683,
+      "avg_exact_loss_normalized": 0.3019599182001664,
+      "avg_insolvent_banks": 1.39,
+      "lp_feasible_fraction": 0.73,
+      "n_mismatches": 0
+    }
+  ]
+}
