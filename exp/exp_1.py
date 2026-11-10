@@ -16,6 +16,7 @@ import numpy as np
 from data.generate_synthetic import build_network
 from src import config
 from src.clearing import (
+    build_regime_table,
     clearing_lp,
     default_resilience_margin,
     exact_clearing_regime_enumeration,
@@ -46,6 +47,7 @@ def run(seed: int = config.EXP1_SEED, n_shocks: int = config.EXP1_N_SHOCKS,
     eps_ub_lower = insolvency_resilience_threshold_lower_bound(p_bar, a, c_bar, s_matrix)
 
     rng = np.random.default_rng(seed)
+    regime_table = build_regime_table(p_bar, a)  # shared 3^n affine maps (paper Sec. 7.2)
     table = []
     for ratio in radius_ratios:
         eps = ratio * eps_ub
@@ -61,7 +63,7 @@ def run(seed: int = config.EXP1_SEED, n_shocks: int = config.EXP1_N_SHOCKS,
                 lp_loss = float(np.sum(p_bar - p_lp))
                 lp_losses.append(lp_loss)
 
-            exact = exact_clearing_regime_enumeration(p_bar, a, c)
+            exact = exact_clearing_regime_enumeration(p_bar, a, c, regime_table=regime_table)
             exact_losses.append(exact.loss)
             resources = c + a.T @ exact.p
             insolvent_counts.append(int(np.sum(resources < -1e-9)))

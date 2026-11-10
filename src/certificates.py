@@ -84,8 +84,16 @@ def fixed_pattern_dual_value(p_bar: np.ndarray, a: np.ndarray, c_bar: np.ndarray
 def fixed_pattern_upper_bound(p_bar: np.ndarray, a: np.ndarray, c_bar: np.ndarray,
                                s_matrix: np.ndarray, eps: float, z: np.ndarray):
     """UB_z(eps) = max over m asset directions of the fixed-pattern dual LP.
-    Returns (UB_z, best_asset) or (None, None) if unbounded for every
-    direction (z fails the robust-domain condition)."""
+    Returns (UB_z, best_asset) or (None, None) if z fails the robust-domain
+    condition (Sec. 6: P_z(c_bar + S delta) must be nonempty at every vertex
+    of the adverse l1 simplex, checked by ``domain_condition_holds``) or is
+    unbounded for every direction. The per-direction dual LP's feasible set
+    for (beta, lambda) does not depend on delta, so it can return a finite
+    value even when the pattern is not actually a valid certificate over the
+    whole simplex; the domain check is therefore required before trusting
+    the dual value as a true upper bound (exp_4 implementation_notes)."""
+    if not domain_condition_holds(p_bar, a, c_bar, s_matrix, eps, z):
+        return None, None
     m = s_matrix.shape[1]
     best_val, best_j = None, None
     for j in range(m):
@@ -180,6 +188,51 @@ def global_upper_bound(p_bar: np.ndarray, a: np.ndarray, c_bar: np.ndarray,
     return best
 
 
+def greedy_fixed_regime_search(p_bar: np.ndarray, a: np.ndarray, c_bar: np.ndarray,
+                                s_matrix: np.ndarray, eps: float) -> tuple[np.ndarray, float, list]:
+    """Greedy fixed-regime search (exp_4 methodology, step 5): starting from
+    the all-zero pattern, activate one bank at a time, accepting an
+    activation only if the resulting pattern still satisfies the robust-
+    domain condition of Sec. 6 (nonempty P_z(c_bar + S delta) at every
+    vertex of the adverse l1 simplex) and strictly improves UB_z(eps). At
+    each step the bank giving the largest improvement is activated
+    (best-improvement greedy; the paper does not specify the activation
+    order beyond "activate a bank"; documented assumption).
+
+    This complements the regime-generation loop of Proposition 11, which can
+    stall at the trivial all-zero pattern beyond epsilon_ub: the single
+    worst-case shock it extracts favors one asset direction at a time, and
+    the resulting realized pattern typically fails the robust-domain
+    condition at the other assets' vertices, so no improving candidate is
+    ever added. Activating banks one at a time instead searches patterns
+    that are robust-feasible by construction at every step.
+    """
+    n = len(p_bar)
+    z = np.zeros(n, dtype=int)
+    best_val, _ = fixed_pattern_upper_bound(p_bar, a, c_bar, s_matrix, eps, z)
+    patterns = [z.copy()]
+    if best_val is None:
+        return z, np.inf, patterns
+    improved = True
+    while improved:
+        improved = False
+        cand_val, cand_i = best_val, None
+        for i in range(n):
+            if z[i] == 1:
+                continue
+            z_try = z.copy()
+            z_try[i] = 1
+            val, _ = fixed_pattern_upper_bound(p_bar, a, c_bar, s_matrix, eps, z_try)
+            if val is not None and val < cand_val - 1e-12:
+                cand_val, cand_i = val, i
+        if cand_i is not None:
+            z[cand_i] = 1
+            best_val = cand_val
+            patterns.append(z.copy())
+            improved = True
+    return z, best_val, patterns
+
+
 def scenario_lower_bound(p_bar: np.ndarray, a: np.ndarray, c_bar: np.ndarray,
                           s_matrix: np.ndarray, scenarios: list,
                           clearing_method: str = "milp") -> dict:
@@ -236,20 +289,26 @@ class Cell:
     best_pattern: np.ndarray | None = None
 
 
-def _cell_candidates(p_bar, a, c_bar, s_matrix, cell: Cell, n_banks: int):
+def _cell_candidates(p_bar, a, c_bar, s_matrix, cell: Cell, n_banks: int,
+                      clearing_method: str = "milp"):
     """Local candidate patterns: exact clearing activity at each vertex and
     the centroid, inherited parent patterns, and pairwise componentwise
-    intersections of these (Proposition 13)."""
+    intersections of these (Proposition 13). ``clearing_method`` selects the
+    exact clearing oracle: the MILP of Theorem 1 for small/medium instances,
+    or the monotone fixed-point iteration (Sec. 7.6) for the large L-353
+    network, where a 353-variable MILP solved repeatedly per cell would be
+    prohibitive."""
+    clear = maximal_clearing_milp if clearing_method == "milp" else maximal_clearing_fixed_point
     cands = list(cell.inherited_patterns)
     local = []
     for v in cell.vertices:
         c = c_bar + s_matrix @ v
-        result = maximal_clearing_milp(p_bar, a, c)
+        result = clear(p_bar, a, c)
         if result.feasible:
             local.append(activity_pattern(result.p))
     centroid = np.mean(cell.vertices, axis=0)
     c = c_bar + s_matrix @ centroid
-    result = maximal_clearing_milp(p_bar, a, c)
+    result = clear(p_bar, a, c)
     if result.feasible:
         local.append(activity_pattern(result.p))
     cands.extend(local)
@@ -265,11 +324,13 @@ def _cell_candidates(p_bar, a, c_bar, s_matrix, cell: Cell, n_banks: int):
     return list(uniq.values()), n_local_clearings
 
 
-def _evaluate_cell(p_bar, a, c_bar, s_matrix, cell: Cell, n_banks: int):
+def _evaluate_cell(p_bar, a, c_bar, s_matrix, cell: Cell, n_banks: int,
+                    clearing_method: str = "milp"):
     """Cell upper bound: min over accepted patterns of the max-vertex
     fixed-pattern loss, where a pattern is accepted only if its restricted
     LP is feasible at every cell vertex (Proposition 13)."""
-    candidates, n_local_clearings = _cell_candidates(p_bar, a, c_bar, s_matrix, cell, n_banks)
+    candidates, n_local_clearings = _cell_candidates(p_bar, a, c_bar, s_matrix, cell, n_banks,
+                                                      clearing_method=clearing_method)
     n_pattern_lps = 0
     best_ub, best_z = np.inf, None
     for z in candidates:
@@ -295,19 +356,21 @@ def _evaluate_cell(p_bar, a, c_bar, s_matrix, cell: Cell, n_banks: int):
 
 def localized_certificate(p_bar: np.ndarray, a: np.ndarray, c_bar: np.ndarray,
                            s_matrix: np.ndarray, eps: float, max_cells: int = 80,
-                           gap_tol: float = 1e-7) -> dict:
+                           gap_tol: float = 1e-7, clearing_method: str = "milp") -> dict:
     """Localized fixed-pattern certificates (Proposition 13): adaptive
     longest-edge bisection of the adverse l1 simplex U_eps^-. On each cell, a
     local candidate family of payment patterns is formed and the cell with
     the largest local upper bound is bisected, until ``max_cells`` cells are
     reached or the certificate stabilizes (two consecutive rounds with no
-    improvement in the global localized upper bound).
+    improvement in the global localized upper bound). ``clearing_method`` is
+    "milp" (Theorem 1) for small/medium networks or "fixed_point" (Sec. 7.6)
+    for the large L-353 network.
     """
     n = len(p_bar)
     m = s_matrix.shape[1]
     t0 = time.perf_counter()
     root = Cell(vertices=adverse_simplex_vertices(m, eps))
-    _evaluate_cell(p_bar, a, c_bar, s_matrix, root, n)
+    _evaluate_cell(p_bar, a, c_bar, s_matrix, root, n, clearing_method=clearing_method)
     cells = [root]
     total_local_clearings = len(root.vertices) + 1
     total_pattern_lps = 0
@@ -333,8 +396,8 @@ def localized_certificate(p_bar: np.ndarray, a: np.ndarray, c_bar: np.ndarray,
         inherited += cell.inherited_patterns
         cell_a = Cell(vertices=verts_a, inherited_patterns=inherited)
         cell_b = Cell(vertices=verts_b, inherited_patterns=inherited)
-        _, lc_a, lp_a = _evaluate_cell(p_bar, a, c_bar, s_matrix, cell_a, n)
-        _, lc_b, lp_b = _evaluate_cell(p_bar, a, c_bar, s_matrix, cell_b, n)
+        _, lc_a, lp_a = _evaluate_cell(p_bar, a, c_bar, s_matrix, cell_a, n, clearing_method=clearing_method)
+        _, lc_b, lp_b = _evaluate_cell(p_bar, a, c_bar, s_matrix, cell_b, n, clearing_method=clearing_method)
         total_local_clearings += lc_a + lc_b
         total_pattern_lps += lp_a + lp_b
         cells.pop(idx)

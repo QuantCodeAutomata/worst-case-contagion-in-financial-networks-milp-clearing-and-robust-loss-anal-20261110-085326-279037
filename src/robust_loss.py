@@ -70,8 +70,16 @@ def eta_wc_point(p_bar: np.ndarray, a: np.ndarray, c_bar: np.ndarray,
     return best_val, best_piece
 
 
-def _pieces_close(p1: AffinePiece, p2: AffinePiece, tol: float = 1e-6) -> bool:
-    return abs(p1.mu - p2.mu) < tol and abs(p1.gamma - p2.gamma) < tol
+def _pieces_close(p1: AffinePiece, p2: AffinePiece, gamma_scale: float,
+                   mu_scale: float, rel_tol: float = 1e-6) -> bool:
+    """Two affine pieces (gamma, mu) are the same piece, up to solver noise,
+    when both coordinates agree to ``rel_tol`` relative to the problem's own
+    scale (gamma ~ sum(p_bar), mu ~ max entry of S). A fixed absolute
+    tolerance under-merges spurious near-duplicate bases at larger n and
+    over-merges genuine nearby breakpoints at smaller n (Sec. 7.3, Table 4).
+    """
+    return (abs(p1.mu - p2.mu) < rel_tol * mu_scale
+            and abs(p1.gamma - p2.gamma) < rel_tol * gamma_scale)
 
 
 def trace_loss_curve(p_bar: np.ndarray, a: np.ndarray, c_bar: np.ndarray,
@@ -108,10 +116,13 @@ def trace_loss_curve(p_bar: np.ndarray, a: np.ndarray, c_bar: np.ndarray,
     recurse(0.0, eps_ub, val_0, piece_0, val_ub, piece_ub, 0)
     segments.sort(key=lambda s: s[0])
 
-    # merge adjacent segments sharing (numerically) the same piece
+    # merge adjacent segments sharing (numerically) the same piece; scales
+    # set the problem's own units so the merge criterion does not drift with n
+    gamma_scale = max(1.0, float(np.sum(p_bar)))
+    mu_scale = max(1.0, float(np.max(s_matrix)) if s_matrix.size else 1.0)
     merged: list[tuple[float, float, AffinePiece]] = []
     for lo, hi, piece in segments:
-        if merged and _pieces_close(merged[-1][2], piece):
+        if merged and _pieces_close(merged[-1][2], piece, gamma_scale, mu_scale):
             prev_lo, _, prev_piece = merged[-1]
             merged[-1] = (prev_lo, hi, prev_piece)
         else:

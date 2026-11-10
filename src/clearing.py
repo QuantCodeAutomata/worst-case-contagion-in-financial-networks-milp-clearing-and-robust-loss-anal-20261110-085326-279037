@@ -21,6 +21,7 @@ class ClearingResult:
     loss: float               # L(p) = 1^T (p_bar - p), not normalized
     feasible: bool            # whether the underlying LP/MILP solved feasible
     method: str               # "lp", "milp", or "fixed_point"
+    residual: float = np.nan  # ||p - T_c(p)||_inf at termination (fixed_point only)
 
 
 def default_resilience_margin(p_bar: np.ndarray, a: np.ndarray, c_bar: np.ndarray,
@@ -122,67 +123,105 @@ def maximal_clearing_fixed_point(p_bar: np.ndarray, a: np.ndarray, c: np.ndarray
         if residual < tol:
             break
     loss = float(np.sum(p_bar - p))
-    return ClearingResult(p=p, loss=loss, feasible=True, method="fixed_point")
+    return ClearingResult(p=p, loss=loss, feasible=True, method="fixed_point",
+                           residual=float(residual))
 
 
-def exact_clearing_regime_enumeration(p_bar: np.ndarray, a: np.ndarray, c: np.ndarray):
-    """Exact maximal clearing vector by exhaustive enumeration of all 3^n
-    bank states (zero payment, full payment, resource-bound partial payment),
-    used as an independent oracle in exp_1 (D-val, n=8 -> 3^8 = 6561 regimes).
+def build_regime_table(p_bar: np.ndarray, a: np.ndarray) -> dict:
+    """Precompute the 3^n affine maps p_r(c) = Minv_r (mask_r * c) + offset_r
+    for every bank-state regime (0 = zero payment, 1 = full payment, 2 =
+    resource-bound partial payment), independently of the shock c.
 
-    For a fixed assignment of states, banks in the "partial" group satisfy
-    p_i = c_i + (A^T p)_i exactly: a linear system in those variables (with
-    the zero/full entries substituted). We solve this linear system for every
-    one of the 3^n combinations in a vectorized sweep and keep the best
-    feasible (box- and resource-consistent) solution, which by the
-    Eisenberg-Noe lattice property is the maximal clearing vector.
+    For a fixed state assignment, banks in the "partial" group satisfy the
+    linear system (I - A_partial^T) p_partial = c_partial + A_full_contrib,
+    whose coefficient matrix and the full-payment contribution do not depend
+    on c; only the right-hand side does (paper Sec. 7.2 / Appendix: "the
+    system reduces to a linear system in the partial-payment variables").
+    Factoring the regime structure out of the per-shock evaluation turns the
+    3^n sweep used in exp_1 (3^8 = 6561 regimes, 100 shocks x 4 radii) into
+    one dense tensor contraction per shock instead of a Python-level solve
+    per regime per shock.
     """
     n = len(p_bar)
-    best_total = -np.inf
-    best_p = None
-    states = [0, 1, 2]  # 0 = zero payment, 1 = full payment, 2 = partial payment
-    for combo in product(states, repeat=n):
+    states = [0, 1, 2]
+    combos = list(product(states, repeat=n))
+    r_count = len(combos)
+    minv_pad = np.zeros((r_count, n, n))
+    offset = np.zeros((r_count, n))
+    partial_mask = np.zeros((r_count, n), dtype=bool)
+    full_mask = np.zeros((r_count, n), dtype=bool)
+    zero_mask = np.zeros((r_count, n), dtype=bool)
+    valid = np.ones(r_count, dtype=bool)
+
+    for k, combo in enumerate(combos):
         combo = np.array(combo)
         zero_idx = np.where(combo == 0)[0]
         full_idx = np.where(combo == 1)[0]
         partial_idx = np.where(combo == 2)[0]
+        zero_mask[k, zero_idx] = True
+        full_mask[k, full_idx] = True
+        partial_mask[k, partial_idx] = True
+        offset[k, full_idx] = p_bar[full_idx]
 
-        p = np.zeros(n)
-        p[full_idx] = p_bar[full_idx]
+        if partial_idx.size == 0:
+            continue
+        a_pp = a[np.ix_(partial_idx, partial_idx)]
+        lin_sys = np.eye(partial_idx.size) - a_pp.T
+        try:
+            inv = np.linalg.inv(lin_sys)
+        except np.linalg.LinAlgError:
+            valid[k] = False
+            continue
+        minv_pad[np.ix_([k], partial_idx, partial_idx)] = inv
+        if full_idx.size:
+            full_contrib = a[np.ix_(full_idx, partial_idx)].T @ p_bar[full_idx]
+            offset[k, partial_idx] = inv @ full_contrib
 
-        if partial_idx.size:
-            # p_i = c_i + sum_j a_ji p_j for i in partial_idx
-            # => (I - A_partial^T) p_partial = c_partial + A_full_contrib
-            a_pp = a[np.ix_(partial_idx, partial_idx)]
-            rhs = c[partial_idx] + (a[np.ix_(full_idx, partial_idx)].T @ p[full_idx]
-                                     if full_idx.size else np.zeros(partial_idx.size))
-            lin_sys = np.eye(partial_idx.size) - a_pp.T
-            try:
-                p_partial = np.linalg.solve(lin_sys, rhs)
-            except np.linalg.LinAlgError:
-                continue
-            p[partial_idx] = p_partial
+    return {
+        "minv_pad": minv_pad, "offset": offset, "partial_mask": partial_mask,
+        "full_mask": full_mask, "zero_mask": zero_mask, "valid": valid,
+        "p_bar": p_bar, "n": n,
+    }
 
-        if not np.all(p >= -1e-7):
-            continue
-        if not np.all(p <= p_bar + 1e-7):
-            continue
-        resources = c + a.T @ p
-        # Zero-payment banks must have nonpositive resources (or zero payment
-        # is consistent trivially when resources >= 0 too, but to keep this a
-        # valid clearing *candidate* consistent with (4) we require:
-        if zero_idx.size and np.any(resources[zero_idx] > 1e-6):
-            continue
-        if full_idx.size and np.any(p_bar[full_idx] - 1e-6 > resources[full_idx]):
-            continue
-        if partial_idx.size and np.any(resources[partial_idx] < -1e-6):
-            continue
-        total = float(np.sum(np.clip(p, 0, p_bar)))
-        if total > best_total:
-            best_total = total
-            best_p = np.clip(p, 0, p_bar)
-    if best_p is None:
+
+def exact_clearing_regime_enumeration(p_bar: np.ndarray, a: np.ndarray, c: np.ndarray,
+                                       regime_table: dict | None = None):
+    """Exact maximal clearing vector by exhaustive enumeration of all 3^n
+    bank states, used as an independent oracle in exp_1 (D-val, n=8 ->
+    3^8 = 6561 regimes). All regimes are evaluated at once as a batched
+    affine map p[r] = Minv[r] @ (mask[r] * c) + offset[r], vectorized with
+    ``np.einsum`` over the regime axis r (see ``build_regime_table``); the
+    best box- and resource-feasible regime is the maximal clearing vector by
+    the Eisenberg-Noe lattice property. Pass a precomputed ``regime_table``
+    (shared across shocks for a fixed instance) to avoid recomputing the
+    3^n affine maps on every call.
+    """
+    if regime_table is None:
+        regime_table = build_regime_table(p_bar, a)
+    minv_pad = regime_table["minv_pad"]
+    offset = regime_table["offset"]
+    partial_mask = regime_table["partial_mask"]
+    full_mask = regime_table["full_mask"]
+    zero_mask = regime_table["zero_mask"]
+    valid = regime_table["valid"]
+    tol = 1e-6
+
+    masked_c = partial_mask * c[None, :]
+    p = np.einsum("rij,rj->ri", minv_pad, masked_c) + offset  # (R, n)
+
+    box_ok = np.all((p >= -tol) & (p <= p_bar[None, :] + tol), axis=1)
+    resources = c[None, :] + p @ a  # (R, n); (A^T p)_i = sum_j a_ji p_j = (p @ a)_i
+    zero_viol = np.any((resources > tol) & zero_mask, axis=1)
+    full_viol = np.any((resources < p_bar[None, :] - tol) & full_mask, axis=1)
+    partial_viol = np.any((resources < -tol) & partial_mask, axis=1)
+    feasible = valid & box_ok & ~zero_viol & ~full_viol & ~partial_viol
+
+    p_clipped = np.clip(p, 0.0, p_bar[None, :])
+    totals = np.where(feasible, np.sum(p_clipped, axis=1), -np.inf)
+    best_idx = int(np.argmax(totals))
+    if not feasible[best_idx]:
         return ClearingResult(p=None, loss=np.nan, feasible=False, method="regime_enum")
+    best_p = p_clipped[best_idx]
     loss = float(np.sum(p_bar - best_p))
     return ClearingResult(p=best_p, loss=loss, feasible=True, method="regime_enum")
 

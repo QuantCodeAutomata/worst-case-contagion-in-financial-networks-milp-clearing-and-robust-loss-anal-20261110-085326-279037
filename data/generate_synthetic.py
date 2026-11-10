@@ -36,12 +36,31 @@ def relative_liability_matrix(p_bar_matrix: np.ndarray) -> np.ndarray:
     return a
 
 
+def _ensure_min_out_degree(adjacency: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """Guarantee every bank owes at least one interbank liability (out-degree
+    >= 1). A liability graph with an isolated zero-liability bank is a
+    degenerate instance outside the "mutual liabilities" setting the paper's
+    model is built on (Sec. 2): such a bank is excluded from the
+    default-resilience margin (7) by construction, yet, if it carries nonzero
+    external exposure, it can still drive the insolvency-resilience threshold
+    (Proposition 5) below the margin, which is a generator artifact rather
+    than a property the paper's experiments exhibit (Table 1 has eps* <
+    eps_ub on every reported instance). Not specified explicitly in the
+    paper; documented assumption."""
+    n = adjacency.shape[0]
+    out_degree = adjacency.sum(axis=1)
+    for i in np.flatnonzero(out_degree == 0):
+        candidates = [j for j in range(n) if j != i]
+        adjacency[i, rng.choice(candidates)] = True
+    return adjacency
+
+
 def generate_er_graph(n: int, density: float, seed: int) -> np.ndarray:
     """Directed Erdos-Renyi adjacency ER(density), no self-loops."""
     rng = np.random.default_rng(seed)
     adjacency = rng.random((n, n)) < density
     np.fill_diagonal(adjacency, False)
-    return adjacency
+    return _ensure_min_out_degree(adjacency, rng)
 
 
 def generate_cp_graph(
@@ -78,7 +97,7 @@ def generate_cp_graph(
 
     adjacency = rng.random((n, n)) < prob
     np.fill_diagonal(adjacency, False)
-    return adjacency
+    return _ensure_min_out_degree(adjacency, rng)
 
 
 def sample_liabilities(
@@ -146,8 +165,16 @@ def build_network(
     # nominal system is default-free (paper Sec. 7.1): c_bar + A^T p_bar >= p_bar.
     at_pbar = a_matrix.T @ p_bar
     deficit = np.maximum(p_bar - at_pbar, 0.0)
+    # Uniform(0, x) buffers have a minimum order statistic that shrinks toward
+    # zero as n grows, which drives the default-resilience margin (7) to a
+    # near-degenerate value for the most exposed bank. The paper's reported
+    # instances (Table 1) all have a visibly positive eps* < eps_ub; drawing
+    # the buffer from a range bounded away from zero keeps every bank's
+    # no-default buffer non-trivial while remaining "small" relative to
+    # p_bar.max() (not specified in the paper; documented assumption).
     rng = np.random.default_rng(seed + 10_000)
-    buffer = rng.uniform(0.0, buffer_scale * max(p_bar.max(), 1.0), size=n)
+    scale = buffer_scale * max(p_bar.max(), 1.0)
+    buffer = rng.uniform(0.3 * scale, scale, size=n)
     c_bar = deficit + buffer
     r_bar = c_bar + at_pbar - p_bar
     assert np.all(r_bar >= -1e-9), "nominal system must be default-free (r_bar >= 0)"

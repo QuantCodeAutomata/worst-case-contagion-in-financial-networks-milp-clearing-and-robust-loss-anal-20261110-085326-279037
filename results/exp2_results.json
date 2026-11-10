@@ -6,106 +6,96 @@
     "graph_type": "CP",
     "density": 0.28,
     "seed": 22,
-    "epsilon_star": 0.027953908566519307,
-    "epsilon_ub": 1.0190638465000565,
-    "epsilon_ub_lower": 1.0190638465000565,
+    "epsilon_star": 0.25004615611658876,
+    "epsilon_ub": 1.1776406567469004,
+    "epsilon_ub_lower": 1.1776406567469004,
     "epsilon_ub_lower_vs_exact_pct": 0.0,
     "curve_properties": {
       "convex_slopes_nondecreasing": true,
       "curve_nondecreasing": true
     },
-    "n_salient_points": 5,
+    "n_salient_points": 4,
     "breakpoints": [
       {
-        "epsilon": 0.027953908566527262,
-        "radius_ratio": 0.027430968788201154,
-        "left_slope": 0.0,
-        "right_slope": 0.023256923396821512,
-        "mechanism": "outer shock-direction switch",
+        "epsilon": 0.29562012604688864,
+        "radius_ratio": 0.2510274457265308,
+        "left_slope": 0.029504873176941945,
+        "right_slope": 0.07859904557112964,
+        "mechanism": "inner default-set switch",
         "banks_changed": [
           5
         ]
       },
       {
-        "epsilon": 0.038013789805705724,
-        "radius_ratio": 0.0373026576659185,
-        "left_slope": 0.023256923396821512,
-        "right_slope": 0.07614754143184553,
-        "mechanism": "outer shock-direction switch",
-        "banks_changed": [
-          9
-        ]
-      },
-      {
-        "epsilon": 0.19665607053469447,
-        "radius_ratio": 0.1929771831373507,
-        "left_slope": 0.07614754143184553,
-        "right_slope": 0.0968251904679869,
+        "epsilon": 0.44335933774957065,
+        "radius_ratio": 0.3764810048035373,
+        "left_slope": 0.07859904557112964,
+        "right_slope": 0.09994239360752216,
         "mechanism": "inner default-set switch",
         "banks_changed": [
           8
         ]
       },
       {
-        "epsilon": 0.4397556931826898,
-        "radius_ratio": 0.43152908887212243,
-        "left_slope": 0.0968251904679869,
-        "right_slope": 0.10735474831667507,
-        "mechanism": "inner default-set switch",
-        "banks_changed": [
-          4
-        ]
-      },
-      {
-        "epsilon": 0.6636377016190164,
-        "radius_ratio": 0.6512228884365387,
-        "left_slope": 0.10735474831667507,
-        "right_slope": 0.1402413128081311,
+        "epsilon": 0.8656371921278657,
+        "radius_ratio": 0.735060552782791,
+        "left_slope": 0.09994239360752216,
+        "right_slope": 0.13192059509304402,
         "mechanism": "inner default-set switch",
         "banks_changed": [
           2
         ]
+      },
+      {
+        "epsilon": 0.9060085121608638,
+        "radius_ratio": 0.769342079835805,
+        "left_slope": 0.13192059509304402,
+        "right_slope": 0.14475626040043757,
+        "mechanism": "inner default-set switch",
+        "banks_changed": [
+          4
+        ]
       }
     ],
     "no_breakpoint_beyond_eps_ub_lower": true,
-    "max_validation_gap": 1.0001422234839907e-07,
+    "max_validation_gap": 1.1823857470893984e-07,
     "n_affine_pieces": 6
   },
   "table_4": [
     {
       "n": 8,
-      "mean_pieces": 4.0,
+      "mean_pieces": 4.5,
       "mean_salient_points": 3.0,
-      "mean_time_sec": 0.3664350485000796,
-      "max_validation_gap": 7.905229448823548e-08
+      "mean_time_sec": 0.49846010449982714,
+      "max_validation_gap": 1.0037092262882297e-07
     },
     {
       "n": 16,
-      "mean_pieces": 7.5,
-      "mean_salient_points": 5.5,
-      "mean_time_sec": 1.0327037495000013,
-      "max_validation_gap": 1.2159707118986063e-07
+      "mean_pieces": 7.0,
+      "mean_salient_points": 6.0,
+      "mean_time_sec": 0.8497554840000703,
+      "max_validation_gap": 6.417637131717058e-07
     },
     {
       "n": 32,
-      "mean_pieces": 13.5,
-      "mean_salient_points": 12.0,
-      "mean_time_sec": 2.7434345309999344,
-      "max_validation_gap": 1.619985394718526e-07
+      "mean_pieces": 10.5,
+      "mean_salient_points": 9.0,
+      "mean_time_sec": 1.6250338925001415,
+      "max_validation_gap": 1.2125392656603395e-07
     },
     {
       "n": 64,
-      "mean_pieces": 36.5,
-      "mean_salient_points": 35.0,
-      "mean_time_sec": 12.479200396499891,
-      "max_validation_gap": 3.0630938420012077e-06
+      "mean_pieces": 13.0,
+      "mean_salient_points": 12.0,
+      "mean_time_sec": 2.6953059940001367,
+      "max_validation_gap": 1.472614847841669e-07
     },
     {
       "n": 128,
-      "mean_pieces": 89.0,
-      "mean_salient_points": 87.5,
-      "mean_time_sec": 89.63890669400007,
-      "max_validation_gap": 1.2530525086151822e-06
+      "mean_pieces": 16.5,
+      "mean_salient_points": 15.0,
+      "mean_time_sec": 4.926805882000281,
+      "max_validation_gap": 4.5490082212218397e-07
     }
   ]
 }

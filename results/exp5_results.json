@@ -1,0 +1,129 @@
+{
+  "instance": "L-353",
+  "n": 353,
+  "m": 5,
+  "graph_type": "CP",
+  "density": 0.02,
+  "seed": 353,
+  "epsilon_star": 0.20527824380159082,
+  "epsilon_ub": 0.39832306315858695,
+  "epsilon_ub_lower": 0.39832306315858695,
+  "epsilon_ub_lower_vs_exact_pct": 0.0,
+  "heuristic_dual_asset": 4,
+  "n_scenarios": 42,
+  "fixed_point_tol": 3e-09,
+  "table_10_scenario_lower_bounds": [
+    {
+      "radius_ratio": 0.0,
+      "epsilon": 0.0,
+      "lb": 0.0,
+      "n_scenarios": 42,
+      "n_patterns": 1,
+      "lp_feasible_at_best": true,
+      "median_time_sec": 0.0001117480001084914,
+      "wall_time_sec": 0.2579481759994451
+    },
+    {
+      "radius_ratio": 0.0776,
+      "epsilon": 0.03090986970110635,
+      "lb": 0.0,
+      "n_scenarios": 42,
+      "n_patterns": 1,
+      "lp_feasible_at_best": true,
+      "median_time_sec": 0.00011164899979121401,
+      "wall_time_sec": 0.25934845600022527
+    },
+    {
+      "radius_ratio": 0.5,
+      "epsilon": 0.19916153157929348,
+      "lb": 0.0,
+      "n_scenarios": 42,
+      "n_patterns": 1,
+      "lp_feasible_at_best": true,
+      "median_time_sec": 0.00011044849952668301,
+      "wall_time_sec": 0.27170387800015305
+    },
+    {
+      "radius_ratio": 1.0,
+      "epsilon": 0.39832306315858695,
+      "lb": 0.002487864857970541,
+      "n_scenarios": 42,
+      "n_patterns": 2,
+      "lp_feasible_at_best": true,
+      "median_time_sec": 0.0002504465001038625,
+      "wall_time_sec": 0.2645944799996869
+    },
+    {
+      "radius_ratio": 1.5,
+      "epsilon": 0.5974845947378804,
+      "lb": 0.011153188438735978,
+      "n_scenarios": 42,
+      "n_patterns": 2,
+      "lp_feasible_at_best": false,
+      "median_time_sec": 0.0003755445000024338,
+      "wall_time_sec": 0.2697298069997487
+    },
+    {
+      "radius_ratio": 2.0,
+      "epsilon": 0.7966461263171739,
+      "lb": 0.0264620208086357,
+      "n_scenarios": 42,
+      "n_patterns": 4,
+      "lp_feasible_at_best": false,
+      "median_time_sec": 0.0005794915000478795,
+      "wall_time_sec": 0.22227139200003876
+    },
+    {
+      "radius_ratio": 3.0,
+      "epsilon": 1.1949691894757608,
+      "lb": 0.07315869448638487,
+      "n_scenarios": 42,
+      "n_patterns": 8,
+      "lp_feasible_at_best": false,
+      "median_time_sec": 0.0008767869999246614,
+      "wall_time_sec": 0.21330852100072661
+    },
+    {
+      "radius_ratio": 5.0,
+      "epsilon": 1.9916153157929348,
+      "lb": 0.195826828366137,
+      "n_scenarios": 42,
+      "n_patterns": 39,
+      "lp_feasible_at_best": false,
+      "median_time_sec": 0.0010831839995262271,
+      "wall_time_sec": 0.21124425000016345
+    }
+  ],
+  "table_11_localized_certificates": [
+    {
+      "radius_ratio": 1.5,
+      "lb": 0.011153188438735978,
+      "localized_ub": 0.011153188439678064,
+      "gap_vs_lb": 9.420866864395805e-13,
+      "n_cells": 3,
+      "n_local_clearings": 35,
+      "n_pattern_lps": 33,
+      "wall_time_sec": 0.38342996499977744
+    },
+    {
+      "radius_ratio": 2.0,
+      "lb": 0.0264620208086357,
+      "localized_ub": 0.026789365441356697,
+      "gap_vs_lb": 0.00032734463272099737,
+      "n_cells": 3,
+      "n_local_clearings": 35,
+      "n_pattern_lps": 92,
+      "wall_time_sec": 1.021231858999272
+    },
+    {
+      "radius_ratio": 3.0,
+      "lb": 0.07315869448638487,
+      "localized_ub": 0.07408816972531075,
+      "gap_vs_lb": 0.0009294752389258781,
+      "n_cells": 3,
+      "n_local_clearings": 35,
+      "n_pattern_lps": 90,
+      "wall_time_sec": 1.0037379109999165
+    }
+  ]
+}
